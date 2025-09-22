@@ -57,13 +57,13 @@ func (c *Cache) RemoveOldest(){
 	}
 }
 
-func (c *Cache) Get(key string)(Value,bool){
+func (c *Cache) Get(key string)(value Value,ok bool){
 	if ele,ok:=c.cache[key];ok{
 		c.ll.MoveToFront(ele)
 		kv:=ele.Value.(*entry)
-		return kv.value,true
+		return kv.value,ok
 	}
-	return nil,false
+	return
 }
 
 func (c *Cache) Len()int{
