@@ -2,7 +2,7 @@ package distcache
 
 import (
 	"sync"
-	"github.com/simplely77/DistCache/lru"
+	"github.com/simplely77/distcache/lru"
 )
 
 type cache struct{
