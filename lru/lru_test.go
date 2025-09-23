@@ -11,6 +11,7 @@ func (s String) Len() int {
 	return len(s)
 }
 
+// test Get method of Cache
 func TestGet(t *testing.T) {
 	lru := New(int64(0), nil)
 	lru.Add("key1", String("1234"))
@@ -22,6 +23,7 @@ func TestGet(t *testing.T) {
 	}
 }
 
+// test RemoveOldest method of Cache
 func TestRemoveOldest(t *testing.T) {
 	k1,k2,k3:="key1","key2","k3"
 	v1,v2,v3:="value1","value2","v3"
@@ -35,6 +37,7 @@ func TestRemoveOldest(t *testing.T) {
 	}
 }
 
+// test OnEvicted callback function of Cache
 func TestOnEvicted(t *testing.T) {
 	keys := make([]string,0)
 	callback := func(key string, value Value) {

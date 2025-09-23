@@ -49,6 +49,8 @@ func GetGroup(name string)*Group{
 	return g
 }
 
+// if key exists in mainCache, return it directly
+// otherwise, load it from the underlying getter
 func (g *Group) Get(key string)(ByteView,error){
 	if key == ""{
 		return ByteView{},fmt.Errorf("key is required")
@@ -61,6 +63,7 @@ func (g *Group) Get(key string)(ByteView,error){
 	return g.load(key)
 }
 
+// load the key's value from the underlying getter
 func (g *Group) load(key string)(value ByteView,err error){
 	return g.getLocally(key)
 }

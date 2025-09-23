@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// test Getter and GetterFunc
 func TestGetter(t *testing.T){
 	var f Getter = GetterFunc(func(key string)([]byte,error){
 		return []byte(key),nil
@@ -23,6 +24,7 @@ var db = map[string]string{
 	"Sam":"567",
 }
 
+// test Get method of Group
 func TestGet(t *testing.T){
 	loadCounts := make(map[string]int,len(db))
 	group := NewGroup("scores",2<<10,GetterFunc(

@@ -5,6 +5,7 @@ import (
 	"github.com/simplely77/distcache/lru"
 )
 
+// cache is a thread-safe in-memory cache
 type cache struct{
 	mu sync.Mutex
 	lru *lru.Cache

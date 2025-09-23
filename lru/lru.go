@@ -28,6 +28,7 @@ func New(maxBytes int64, onEvicted func(string,Value))*Cache{
 	}
 }
 
+// Add adds a value to the cache.
 func (c *Cache) Add(key string,val Value){
 	if ele,ok:=c.cache[key];ok{
 		c.ll.MoveToFront(ele)
@@ -44,6 +45,7 @@ func (c *Cache) Add(key string,val Value){
 	}
 }
 
+// RemoveOldest removes the oldest item from the cache.
 func (c *Cache) RemoveOldest(){
 	ele := c.ll.Back()
 	if ele != nil{
@@ -57,6 +59,7 @@ func (c *Cache) RemoveOldest(){
 	}
 }
 
+// Get looks up a key's value from the cache.
 func (c *Cache) Get(key string)(value Value,ok bool){
 	if ele,ok:=c.cache[key];ok{
 		c.ll.MoveToFront(ele)
