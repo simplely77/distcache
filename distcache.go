@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"github.com/simplely77/distcache/singleflight"
 )
 
 type Group struct {
@@ -11,6 +12,7 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers    PeerPicker
+	loader *singleflight.Group
 }
 
 type Getter interface {
@@ -38,6 +40,7 @@ func NewGroup(name string,cacheBytes int64,getter Getter)*Group{
 		name:name,
 		getter:getter,
 		mainCache:cache{cacheBytes: cacheBytes},
+		loader: &singleflight.Group{},
 	}
 	groups[name]=g
 	return g
@@ -74,14 +77,20 @@ func (g *Group) RegisterPeers(peers PeerPicker){
 
 // load the key's value from the underlying getter
 func (g *Group) load(key string)(value ByteView,err error){
-	if g.peers!=nil{
-		if peer,ok:=g.peers.PickPeer(key);ok{
-			if value,err:=g.getFromPeer(peer,key);err==nil{
-				return value,nil
+	view,err:=g.loader.Do(key,func() (interface{}, error) {
+		if g.peers!=nil{
+			if peer,ok:=g.peers.PickPeer(key);ok{
+				if value,err:=g.getFromPeer(peer,key);err==nil{
+					return value,nil
+				}
 			}
 		}
+		return g.getLocally(key)
+	})
+	if err==nil{
+		return view.(ByteView),nil
 	}
-	return g.getLocally(key)
+	return
 }
 
 func (g *Group)getFromPeer(peer PeerGetter,key string)(ByteView,error){

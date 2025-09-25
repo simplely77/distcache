@@ -114,3 +114,4 @@ func (h *httpGetter)Get(group string,key string)([]byte,error){
 }
 
 var _ PeerGetter = (*httpGetter)(nil)
+var _ PeerPicker = (*HTTPPool)(nil)
