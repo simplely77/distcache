@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package distcache;
+
+option go_package = "github.com/simplely77/distcache/proto;";
+
+// Cache service definition
+service CacheService {
+    // 获取 key
+    rpc Get(GetRequest) returns (GetResponse);
+
+    // 设置 key-value（对应 Populate）
+    rpc Set(SetRequest) returns (SetResponse);
+
+    // 删除 key（对应 Invalidate）
+    rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
+// --------- Get ---------
+message GetRequest {
+    string group = 1;
+    string key = 2;
+}
+
+message GetResponse {
+    bytes data = 1;
+    bool found = 2;
+    string err = 3;
+}
+
+// --------- Set / Populate ---------
+message SetRequest {
+    string group = 1;
+    string key = 2;
+    bytes data = 3;
+}
+
+message SetResponse {
+    bool success = 1;
+    string err = 2;
+}
+
+// --------- Delete / Invalidate ---------
+message DeleteRequest {
+    string group = 1;
+    string key = 2;
+}
+
+message DeleteResponse {
+    bool success = 1;
+    string err = 2;
+}

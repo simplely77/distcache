@@ -1,5 +1,6 @@
 package distcache
 
+// ByteView 将lru包中的Value接口实现为只读的字节切片，防止外部修改
 type ByteView struct{
 	b []byte
 }
