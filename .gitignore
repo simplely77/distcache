@@ -35,11 +35,7 @@ main
 *.out
 
 # Documentation (ignored for resume project)
-docs/
 examples/
-
-# Test files
-*_test.go
 
 # Temporary files
 tmp/

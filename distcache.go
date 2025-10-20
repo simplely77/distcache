@@ -106,7 +106,9 @@ func (g *Group) Get(key string) (ByteView, error) {
 	}
 
 	if v, ok := g.mainCache.get(key); ok {
-		log.Println("[DistCache] hit")
+		if IsLoggingEnabled() {
+			log.Println("[DistCache] hit")
+		}
 		if IsMetricsEnabled() {
 			GetMetrics().RecordRequest("get", "success")
 			GetMetrics().RecordDuration("get", "success", time.Since(start).Seconds())

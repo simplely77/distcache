@@ -10,7 +10,8 @@
 
 | 特性 | 原始geecache | DistCache | 提升 |
 |------|-------------|-----------|------|
-| **并发架构** | 单全局锁 | 256分片锁 | **4倍** |
+| **并发架构** | 单全局锁 | 256分片锁 | **6倍** |
+| **热点检测** | 无 | Bloom+CountMin | **热key零锁竞争** |
 | **通信协议** | HTTP/JSON | gRPC/Protobuf | **5倍序列化** |
 | **防击穿** | 无 | Singleflight | **99%减少** |
 | **高可用** | 无 | 2副本机制 | **故障切换** |
@@ -78,22 +79,46 @@ func main() {
 
 基于真实测试数据（Intel i3-12100F, Linux, Go 1.23.3）：
 
-### 并发读取性能
+### 并发读取性能（均匀分布）
 ```
-单锁方案:    203.3 ns/op  (492万ops/s)
-256分片锁:   50.4 ns/op   (1983万ops/s)  ✅ 4.03倍提升
+单锁方案:    204.0 ns/op  (490万ops/s)
+256分片锁:   34.06 ns/op  (2936万ops/s)  ✅ 5.99倍提升
+```
+
+### 热点数据访问（90%请求集中在10%的键）
+```
+单锁方案:    173.1 ns/op  (578万ops/s)
+256分片锁:   28.51 ns/op  (3507万ops/s)  ✅ 6.07倍提升
+热点键优化:  零锁竞争（直接从 sync.Map 返回）
 ```
 
 ### 混合读写性能 (80%读 20%写)
 ```
-单锁方案:    282.3 ns/op  (354万ops/s)
-256分片锁:   78.6 ns/op   (1273万ops/s)  ✅ 3.59倍提升
+单锁方案:    292.6 ns/op  (342万ops/s)
+256分片锁:   251.5 ns/op  (397万ops/s)  ✅ 1.16倍提升
+注：写操作需更新热点检测器，有额外开销
 ```
 
-### 高并发场景 (200 goroutines)
+### 性能权衡说明
+
+**热点检测的代价与收益：**
+- ✅ **热点场景**：性能提升6倍以上（真实业务常见）
+- ✅ **均匀读取**：性能提升6倍
+- ⚠️ **均匀写入**：提升有限（写操作需更新 Bloom Filter 和 Count-Min Sketch）
+
+**适用场景：**
+- ✅ 读多写少（80/20或更高比例）
+- ✅ 存在明显热点数据（秒杀、热门内容）
+- ✅ 高并发场景（避免热点键锁竞争雪崩）
+
+这是典型的**工程权衡**：牺牲少量写性能，换取热点场景的巨大提升。
+
+### 热点键检测机制
 ```
-单锁方案:    367万ops/s
-256分片锁:   1453万ops/s  ✅ 3.96倍提升
+检测延迟:    Bloom Filter 快速过滤 + Count-Min Sketch 精确计数
+晋升阈值:    10次访问自动识别为热点
+存储方式:    sync.Map 独立存储，读取零锁竞争
+衰减机制:    5分钟周期性淘汰冷数据
 ```
 
 ## 🏗️ 架构设计
@@ -113,7 +138,22 @@ func (c *cache) getShard(key string) *cacheShard {
 }
 ```
 
-#### 2. gRPC/Protobuf 通信
+#### 2. 热点键检测与优化
+```go
+type HotKeyDetector struct {
+    bf        *bloomfilter.BloomFilter    // 快速过滤
+    cms       *countminsketch.CountMinSketch  // 频率统计
+    hotKeys   sync.Map                     // 热点键独立存储（零锁竞争）
+    threshold uint64                       // 晋升阈值
+}
+
+// 热点键命中直接返回，无需分片锁
+if v, found := c.hotDetector.GetHot(key); found {
+    return v, true  // 零锁开销
+}
+```
+
+#### 3. gRPC/Protobuf 通信
 ```protobuf
 service CacheService {
     rpc Get(GetRequest) returns (GetResponse);
@@ -122,7 +162,7 @@ service CacheService {
 }
 ```
 
-#### 3. Singleflight 防击穿
+#### 4. Singleflight 防击穿
 ```go
 view, err := g.loader.Do(key, func() (interface{}, error) {
     return g.getLocally(key)  // 相同key只执行一次
@@ -186,8 +226,10 @@ defer server.Stop()
 - **语言**: Go 1.23+
 - **通信**: gRPC + Protocol Buffers
 - **算法**: 一致性哈希, FNV哈希, LRU缓存
+- **热点检测**: Bloom Filter + Count-Min Sketch
 - **并发**: 256分片锁, Singleflight
 - **高可用**: 2副本机制
+- **监控**: Prometheus + Grafana
 
 ## 💡 应用场景
 
@@ -202,23 +244,26 @@ defer server.Stop()
 DistCache - 高性能分布式缓存系统
 
 核心优化：
-• 256分片锁架构：并发读性能提升4倍 (203ns→50ns)
+• 256分片锁架构：并发读性能提升6倍 (204ns→34ns)
+• 热点键检测：Bloom Filter + Count-Min Sketch，热点场景提升6倍
+• 零锁竞争设计：热点键独立存储(sync.Map)，无需分片锁
 • gRPC/Protobuf通信：序列化性能提升5倍，延迟降低75%
 • Singleflight防击穿：数据库压力减少99%
 • 一致性哈希+2副本：提供高可用性
+• Prometheus监控：生产级可观测性
 
-技术栈：Go, gRPC, Protobuf, 一致性哈希, LRU
-性能：吞吐量1400万+ops/sec, 延迟<1ms
+技术栈：Go, gRPC, Protobuf, 一致性哈希, LRU, Bloom Filter
+性能：热点场景3500万+ops/sec, 均匀分布2900万+ops/sec
 ```
 
 ## 📊 与其他方案对比
 
-| 方案 | 并发模型 | 通信协议 | 性能 | 复杂度 |
-|------|---------|---------|------|--------|
-| **Redis** | 单线程 | RESP | 高 | 低 |
-| **Memcached** | 多线程 | ASCII/Binary | 高 | 低 |
-| **Original geecache** | 单锁 | HTTP/JSON | 中 | 中 |
-| **DistCache** | 256分片锁 | gRPC/Protobuf | **最高** | 中 |
+| 方案 | 并发模型 | 热点优化 | 通信协议 | 性能 | 复杂度 |
+|------|---------|---------|---------|------|--------|
+| **Redis** | 单线程 | ❌ | RESP | 高 | 低 |
+| **Memcached** | 多线程 | ❌ | ASCII/Binary | 高 | 低 |
+| **Original geecache** | 单锁 | ❌ | HTTP/JSON | 中 | 中 |
+| **DistCache** | 256分片锁 | ✅ Bloom+CMS | gRPC/Protobuf | **最高** | 中 |
 
 ## 🔗 相关项目
 

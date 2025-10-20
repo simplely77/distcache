@@ -73,7 +73,7 @@ func (c *cache) get(key string) (value ByteView, ok bool) {
 	if v, found := shard.lru.Get(key); found {
 		value = v.(ByteView)
 		ok = true
-		c.hotDetector.RecordKey(key, value)
+		go c.hotDetector.RecordKey(key, value)
 		if IsMetricsEnabled() {
 			GetMetrics().RecordHit("local")
 			incrementTotalHits()

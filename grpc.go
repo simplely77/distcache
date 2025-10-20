@@ -41,7 +41,9 @@ func NewGRPCPool(self string) *GRPCPool {
 }
 
 func (p *GRPCPool) Log(format string, v ...interface{}) {
-	log.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
+	if IsLoggingEnabled() {
+		log.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
+	}
 }
 
 // Set 处理gRPC Set请求 - 仅用于副本同步，不对外开放
