@@ -14,6 +14,7 @@
 | **通信协议** | HTTP/JSON | gRPC/Protobuf | **5倍序列化** |
 | **防击穿** | 无 | Singleflight | **99%减少** |
 | **高可用** | 无 | 2副本机制 | **故障切换** |
+| **可观测性** | 无 | Prometheus监控 | **生产就绪** |
 
 ## 🚀 快速开始
 
@@ -27,6 +28,12 @@ import (
 )
 
 func main() {
+    // 启用监控（可选）
+    distcache.EnableMetrics()
+    
+    // 启动监控服务器
+    go distcache.StartMetricsServer(":9090")
+
     // 1. 定义数据源
     getter := distcache.GetterFunc(func(key string) ([]byte, error) {
         // 从数据库查询...
@@ -39,6 +46,8 @@ func main() {
     // 3. 使用缓存
     value, _ := group.Get("key")
     fmt.Println(value.String())
+    
+    // 查看监控: http://localhost:9090/status
 }
 ```
 
@@ -140,9 +149,37 @@ go test -bench="BenchmarkCache_ConcurrentRead"
 ## 📖 文档
 
 - [📈 性能测试报告](PERFORMANCE_BENCHMARK.md) - 详细的基准测试数据
-- [📚 使用指南](docs/usage.md) - 完整的使用示例
+- [� 监控集成指南](docs/MONITORING.md) - Prometheus 监控使用文档
+- [�📚 使用指南](docs/usage.md) - 完整的使用示例
 - [🔧 优化详解](docs/optimization.md) - 技术优化细节
 - [🎯 gRPC优化](docs/grpc.md) - gRPC通信优化
+
+## 📊 Prometheus 监控
+
+DistCache 内置完整的 Prometheus 监控支持：
+
+```go
+// 启用监控
+distcache.EnableMetrics()
+
+// 启动监控服务器
+server := distcache.StartMetricsServerAsync(":9090")
+defer server.Stop()
+
+// 访问监控端点:
+// - http://localhost:9090/metrics  (Prometheus 格式)
+// - http://localhost:9090/status   (可视化面板)
+// - http://localhost:9090/stats    (JSON API)
+// - http://localhost:9090/health   (健康检查)
+```
+
+**监控指标包括**：
+- ✅ 缓存命中率和 QPS
+- ✅ 热点键识别和晋升统计
+- ✅ 请求延迟分布（P50/P95/P99）
+- ✅ 布隆过滤器性能
+
+详见 [监控集成指南](docs/MONITORING.md)
 
 ## 🛠️ 技术栈
 

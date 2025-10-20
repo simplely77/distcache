@@ -16,14 +16,14 @@ type cacheShard struct {
 }
 
 type cache struct {
-	shards     [shardCount]*cacheShard
-	cacheBytes int64
+	shards      [shardCount]*cacheShard
+	cacheBytes  int64
 	hotDetector *HotKeyDetector
 }
 
 func newCache(cacheBytes int64, hotThreshold uint64, decayInterval time.Duration) *cache {
 	c := &cache{
-		cacheBytes: cacheBytes,
+		cacheBytes:  cacheBytes,
 		hotDetector: NewHotKeyDetector(hotThreshold, decayInterval),
 	}
 
@@ -56,6 +56,11 @@ func (c *cache) add(key string, value ByteView) {
 func (c *cache) get(key string) (value ByteView, ok bool) {
 	// 先检查是否为热点key
 	if v, found := c.hotDetector.GetHot(key); found {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordHit("hot")
+			incrementTotalHits()
+			incrementHotKeyHits()
+		}
 		return v, true
 	}
 
@@ -69,6 +74,10 @@ func (c *cache) get(key string) (value ByteView, ok bool) {
 		value = v.(ByteView)
 		ok = true
 		c.hotDetector.RecordKey(key, value)
+		if IsMetricsEnabled() {
+			GetMetrics().RecordHit("local")
+			incrementTotalHits()
+		}
 	}
 	return
 }

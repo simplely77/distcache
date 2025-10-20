@@ -33,11 +33,25 @@ func NewHotKeyDetector(threshold uint64, decayInterval time.Duration) *HotKeyDet
 func (h *HotKeyDetector) RecordKey(key string, value ByteView) {
 	if !h.bf.Test(key) {
 		h.bf.Add(key)
+		if IsMetricsEnabled() {
+			GetMetrics().RecordBloomFilter("miss")
+		}
 		return
 	}
+
+	if IsMetricsEnabled() {
+		GetMetrics().RecordBloomFilter("hit")
+	}
+
 	h.cms.Add(key, 1)
 	count := h.cms.Count(key)
 	if count >= h.threshold {
+		// 检查是否是新晋升的热点key
+		if _, exists := h.hotKeys.Load(key); !exists {
+			if IsMetricsEnabled() {
+				GetMetrics().RecordHotKey("promoted")
+			}
+		}
 		h.hotKeys.Store(key, value)
 	}
 }
@@ -64,6 +78,9 @@ func (h *HotKeyDetector) periodicDecay() {
 				key := k.(string)
 				if h.cms.Count(key) < h.threshold/2 {
 					h.hotKeys.Delete(key)
+					if IsMetricsEnabled() {
+						GetMetrics().RecordHotKey("demoted")
+					}
 				}
 				return true
 			})

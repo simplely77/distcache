@@ -91,15 +91,40 @@ func GetGroup(name string) *Group {
 // if key exists in mainCache, return it directly
 // otherwise, load it from the underlying getter
 func (g *Group) Get(key string) (ByteView, error) {
+	start := time.Now()
+
 	if key == "" {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("get", "error")
+			GetMetrics().RecordDuration("get", "error", time.Since(start).Seconds())
+		}
 		return ByteView{}, fmt.Errorf("key is required")
+	}
+
+	if IsMetricsEnabled() {
+		incrementTotalRequests()
 	}
 
 	if v, ok := g.mainCache.get(key); ok {
 		log.Println("[DistCache] hit")
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("get", "success")
+			GetMetrics().RecordDuration("get", "success", time.Since(start).Seconds())
+		}
 		return v, nil
 	}
-	return g.load(key)
+
+	value, err := g.load(key)
+	if IsMetricsEnabled() {
+		if err != nil {
+			GetMetrics().RecordRequest("get", "error")
+			GetMetrics().RecordDuration("get", "error", time.Since(start).Seconds())
+		} else {
+			GetMetrics().RecordRequest("get", "success")
+			GetMetrics().RecordDuration("get", "success", time.Since(start).Seconds())
+		}
+	}
+	return value, err
 }
 
 // set 是内部方法，用于设置缓存并同步到副本节点
