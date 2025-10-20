@@ -60,6 +60,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		mainCache: newCache(cacheBytes, DefaultHotKeyThreshold, DefaultDecayInterval),
 		loader:    &singleflight.Group{},
 	}
+	g.mainCache.groupName = name
 	groups[name] = g
 	return g
 }
@@ -77,6 +78,7 @@ func NewGroupWithHotKeyConfig(name string, cacheBytes int64, getter Getter, hotT
 		mainCache: newCache(cacheBytes, hotThreshold, decayInterval),
 		loader:    &singleflight.Group{},
 	}
+	g.mainCache.groupName = name
 	groups[name] = g
 	return g
 }
@@ -99,10 +101,6 @@ func (g *Group) Get(key string) (ByteView, error) {
 			GetMetrics().RecordDuration("get", "error", time.Since(start).Seconds())
 		}
 		return ByteView{}, fmt.Errorf("key is required")
-	}
-
-	if IsMetricsEnabled() {
-		incrementTotalRequests()
 	}
 
 	if v, ok := g.mainCache.get(key); ok {
@@ -178,11 +176,17 @@ func (g *Group) load(key string) (value ByteView, err error) {
 		if g.peers != nil {
 			if peer, ok := g.peers.PickPeer(key); ok {
 				if value, err := g.getFromPeer(peer, key); err == nil {
+					if IsMetricsEnabled() {
+						GetMetrics().RecordHit("remote")
+					}
 					return value, nil
 				}
 				// 主节点失败，读取副节点
 				for _, peer := range g.peers.ReplicaPeersForKey(key) {
 					if value, err := g.getFromPeer(peer, key); err == nil {
+						if IsMetricsEnabled() {
+							GetMetrics().RecordHit("remote")
+						}
 						return value, nil
 					}
 				}

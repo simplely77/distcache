@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -15,13 +14,6 @@ type MetricsServer struct {
 	addr   string
 	server *http.Server
 }
-
-// 全局统计信息（用于简单的内部统计）
-var (
-	totalRequests int64
-	totalHits     int64
-	hotKeyHits    int64
-)
 
 // NewMetricsServer 创建一个新的监控服务器
 func NewMetricsServer(addr string) *MetricsServer {
@@ -84,17 +76,4 @@ func StartMetricsServerAsync(addr string) *MetricsServer {
 		}
 	}()
 	return server
-}
-
-// 内部函数：更新统计计数器
-func incrementTotalRequests() {
-	atomic.AddInt64(&totalRequests, 1)
-}
-
-func incrementTotalHits() {
-	atomic.AddInt64(&totalHits, 1)
-}
-
-func incrementHotKeyHits() {
-	atomic.AddInt64(&hotKeyHits, 1)
 }

@@ -49,10 +49,15 @@ func (p *GRPCPool) Log(format string, v ...interface{}) {
 // Set 处理gRPC Set请求 - 仅用于副本同步，不对外开放
 // 注意：这是内部方法，用于节点间同步副本数据
 func (p *GRPCPool) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse, error) {
+	start := time.Now()
 	p.Log("grpc Set (replica sync) %s %s", req.Group, req.Key)
 
 	group := GetGroup(req.Group)
 	if group == nil {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("grpc_set", "error")
+			GetMetrics().RecordDuration("grpc_set", "error", time.Since(start).Seconds())
+		}
 		return &pb.SetResponse{
 			Success: false,
 			Err:     "no such group: " + req.Group,
@@ -62,15 +67,25 @@ func (p *GRPCPool) Set(ctx context.Context, req *pb.SetRequest) (*pb.SetResponse
 	// 直接写入本地缓存，不再触发副本同步（避免循环）
 	group.setCache(req.Key, ByteView{b: req.Data})
 
+	if IsMetricsEnabled() {
+		GetMetrics().RecordRequest("grpc_set", "success")
+		GetMetrics().RecordDuration("grpc_set", "success", time.Since(start).Seconds())
+	}
+
 	return &pb.SetResponse{Success: true}, nil
 }
 
 // Delete 删除本地缓存并同步副本
 func (p *GRPCPool) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
+	start := time.Now()
 	p.Log("grpc Delete %s %s", req.Group, req.Key)
 
 	group := GetGroup(req.Group)
 	if group == nil {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("grpc_delete", "error")
+			GetMetrics().RecordDuration("grpc_delete", "error", time.Since(start).Seconds())
+		}
 		return &pb.DeleteResponse{
 			Success: false,
 			Err:     "no such group: " + req.Group,
@@ -89,15 +104,25 @@ func (p *GRPCPool) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delet
 		}(peer)
 	}
 
+	if IsMetricsEnabled() {
+		GetMetrics().RecordRequest("grpc_delete", "success")
+		GetMetrics().RecordDuration("grpc_delete", "success", time.Since(start).Seconds())
+	}
+
 	return &pb.DeleteResponse{Success: true}, nil
 }
 
 // Get 处理gRPC Get请求
 func (p *GRPCPool) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+	start := time.Now()
 	p.Log("grpc Get %s %s", req.Group, req.Key)
 
 	group := GetGroup(req.Group)
 	if group == nil {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("grpc_get", "error")
+			GetMetrics().RecordDuration("grpc_get", "error", time.Since(start).Seconds())
+		}
 		return &pb.GetResponse{
 			Found: false,
 			Err:   "no such group: " + req.Group,
@@ -106,10 +131,19 @@ func (p *GRPCPool) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse
 
 	view, err := group.Get(req.Key)
 	if err != nil {
+		if IsMetricsEnabled() {
+			GetMetrics().RecordRequest("grpc_get", "error")
+			GetMetrics().RecordDuration("grpc_get", "error", time.Since(start).Seconds())
+		}
 		return &pb.GetResponse{
 			Found: false,
 			Err:   err.Error(),
 		}, nil
+	}
+
+	if IsMetricsEnabled() {
+		GetMetrics().RecordRequest("grpc_get", "success")
+		GetMetrics().RecordDuration("grpc_get", "success", time.Since(start).Seconds())
 	}
 
 	return &pb.GetResponse{
