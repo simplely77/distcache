@@ -3,13 +3,10 @@ package distcache
 import (
 	"sync"
 	"time"
-
-	"github.com/simplely77/distcache/bloomfilter"
 	"github.com/simplely77/distcache/countminsketch"
 )
 
 type HotKeyDetector struct {
-	bf        *bloomfilter.BloomFilter
 	cms       *countminsketch.CountMinSketch
 	hotKeys   sync.Map // key -> ByteView
 	threshold uint64
@@ -19,7 +16,6 @@ type HotKeyDetector struct {
 
 func NewHotKeyDetector(threshold uint64, decayInterval time.Duration) *HotKeyDetector {
 	h := &HotKeyDetector{
-		bf:        bloomfilter.NewBloomFilter(1_000_000, 5),
 		cms:       countminsketch.NewCountMinSketch(0.001, 0.99),
 		threshold: threshold,
 		decayIntv: decayInterval,
@@ -31,18 +27,6 @@ func NewHotKeyDetector(threshold uint64, decayInterval time.Duration) *HotKeyDet
 
 // RecordKey 在访问时调用
 func (h *HotKeyDetector) RecordKey(key string, value ByteView) {
-	if !h.bf.Test(key) {
-		h.bf.Add(key)
-		if IsMetricsEnabled() {
-			GetMetrics().RecordBloomFilter("miss")
-		}
-		return
-	}
-
-	if IsMetricsEnabled() {
-		GetMetrics().RecordBloomFilter("hit")
-	}
-
 	h.cms.Add(key, 1)
 	count := h.cms.Count(key)
 	if count >= h.threshold {
